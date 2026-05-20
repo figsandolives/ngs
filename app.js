@@ -62,6 +62,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 function init() {
   cacheElements();
+  bindLogoFallbacks();
   initFirebase();
   bindEvents();
   renderNumpad();
@@ -69,6 +70,17 @@ function init() {
   restoreSession();
   loadCatalogData();
   listenRemoteOrders();
+}
+
+function bindLogoFallbacks() {
+  document.querySelectorAll("img[data-fallback-src]").forEach((image) => {
+    image.addEventListener("error", () => {
+      const fallback = image.dataset.fallbackSrc;
+      if (fallback && image.src !== fallback) {
+        image.src = fallback;
+      }
+    }, { once: true });
+  });
 }
 
 function cacheElements() {
@@ -621,6 +633,7 @@ async function createOrderImage(order) {
 function drawLogo(ctx, x, y, size) {
   return new Promise((resolve) => {
     const image = new Image();
+    let triedFallback = false;
     image.onload = () => {
       ctx.save();
       roundRect(ctx, x, y, size, size, 28, "#ffffff", null);
@@ -628,8 +641,15 @@ function drawLogo(ctx, x, y, size) {
       ctx.restore();
       resolve();
     };
-    image.onerror = resolve;
-    image.src = "لاخذ البيانات/logo.png";
+    image.onerror = () => {
+      if (!triedFallback) {
+        triedFallback = true;
+        image.src = "لاخذ البيانات/logo.png";
+        return;
+      }
+      resolve();
+    };
+    image.src = "logo.png";
   });
 }
 

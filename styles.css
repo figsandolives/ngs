@@ -29,7 +29,7 @@ body {
   font-family: "Cairo", "Inter", system-ui, sans-serif;
   background:
     linear-gradient(145deg, rgba(255,255,255,0.92), rgba(248,239,224,0.88) 42%, rgba(229,216,194,0.92)),
-    url("لاخذ البيانات/logo.png") center 12vh / min(80vw, 520px) no-repeat fixed;
+    url("logo.png") center 12vh / min(80vw, 520px) no-repeat fixed;
 }
 
 body::before {
