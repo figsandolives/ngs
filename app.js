@@ -59,8 +59,10 @@ const state = {
 const els = {};
 
 document.addEventListener("DOMContentLoaded", init);
+window.addEventListener("pageshow", handlePageShow);
 
 function init() {
+  clearLegacySession();
   cacheElements();
   bindLogoFallbacks();
   initFirebase();
@@ -75,6 +77,19 @@ function init() {
   resetSessionOnLoad();
   loadCatalogData();
   listenRemoteOrders();
+}
+
+function handlePageShow(event) {
+  const publicOrderId = new URLSearchParams(window.location.search).get("order");
+  if (publicOrderId || !els.loginView) return;
+  if (event.persisted || performance.getEntriesByType("navigation")[0]?.type === "back_forward") {
+    resetSessionOnLoad();
+  }
+}
+
+function clearLegacySession() {
+  localStorage.removeItem("shortageSession.v1");
+  sessionStorage.removeItem("shortageSession.v1");
 }
 
 function bindLogoFallbacks() {
@@ -212,9 +227,14 @@ function logout() {
 }
 
 function resetSessionOnLoad() {
+  clearLegacySession();
   state.employee = null;
   state.branch = "";
   state.cart = [];
+  if (els.employeeCode) els.employeeCode.value = "";
+  if (els.loginError) els.loginError.textContent = "";
+  if (els.catalogEmployee) els.catalogEmployee.textContent = "-";
+  if (els.catalogBranch) els.catalogBranch.textContent = "-";
   clearBranchSelection();
   renderFloatingCart();
   showView("login");
