@@ -102,6 +102,7 @@ function initFirebase() {
 
 function bindEvents() {
   els.loginForm.addEventListener("submit", handleLogin);
+  els.employeeCode.addEventListener("input", normalizeCodeInput);
   els.branchOptions.addEventListener("click", handleBranchPick);
   els.confirmBranch.addEventListener("click", openCatalog);
   els.logoutFromBranch.addEventListener("click", logout);
@@ -127,6 +128,14 @@ function bindEvents() {
   els.adminLogout.addEventListener("click", () => showView(state.employee ? "branch" : "login"));
   els.adminSearch.addEventListener("input", renderAdminOrders);
   els.clearLocalOrders.addEventListener("click", clearLocalOrders);
+}
+
+function normalizeCodeInput(event) {
+  const input = event.target;
+  const normalized = normalizeDigits(input.value);
+  if (input.value !== normalized) {
+    input.value = normalized;
+  }
 }
 
 function handleLogin(event) {
