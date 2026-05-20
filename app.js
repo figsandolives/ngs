@@ -47,6 +47,7 @@ const state = {
   employee: null,
   branch: "",
   products: [],
+  catalogLoading: true,
   catalogFilter: "all",
   cart: [],
   selectedItem: null,
@@ -266,7 +267,12 @@ function selectBranchButton(branch) {
 }
 
 function loadCatalogData() {
+  state.catalogLoading = true;
+  setStatus("جاري تحميل المنتجات...", true);
+  renderProducts();
+
   if (!state.db) {
+    state.catalogLoading = false;
     setStatus("لا يوجد اتصال بقاعدة البيانات.");
     renderProducts();
     return;
@@ -279,9 +285,11 @@ function loadCatalogData() {
     const products = mapFirebaseItems(productsSnap.val(), "product");
     const materials = mapFirebaseItems(materialsSnap.val(), "material");
     state.products = [...products, ...materials].sort((a, b) => getName(a).localeCompare(getName(b), "ar"));
+    state.catalogLoading = false;
     setStatus(state.products.length ? "تم تحميل المنتجات ومواد المخزون" : "لم يتم العثور على منتجات في قاعدة البيانات");
     renderProducts();
   }).catch(() => {
+    state.catalogLoading = false;
     setStatus("تعذر تحميل المنتجات من قاعدة البيانات.");
     renderProducts();
   });
@@ -311,6 +319,13 @@ function mapFirebaseItems(data, type) {
 }
 
 function renderProducts() {
+  if (state.catalogLoading) {
+    els.productGrid.innerHTML = "";
+    els.emptyState.classList.add("hidden");
+    els.productCount.textContent = "0 صنف";
+    return;
+  }
+
   const query = normalizeSearch(els.productSearch.value);
   const list = state.products.filter((item) => {
     if (state.catalogFilter !== "all" && item.type !== state.catalogFilter) return false;
@@ -873,8 +888,9 @@ function getName(item) {
   return item?.nameAr || item?.raw?.nameAr || item?.raw?.name || item?.nameEn || item?.code || "-";
 }
 
-function setStatus(text) {
+function setStatus(text, loading = false) {
   els.dataStatus.textContent = text;
+  els.dataStatus.classList.toggle("loading-status", loading);
 }
 
 function normalizeDigits(value) {

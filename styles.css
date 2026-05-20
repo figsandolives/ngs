@@ -402,6 +402,28 @@ input:focus {
   font-weight: 700;
 }
 
+.loading-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.loading-status::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(122, 86, 29, 0.22);
+  border-top-color: var(--gold-dark);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
