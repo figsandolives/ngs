@@ -495,23 +495,13 @@ async function sendRequest() {
   if (!state.cart.length) return;
   const order = buildOrder();
   persistOrder(order);
-  const imageFile = await createOrderImage(order);
+  await createOrderImage(order);
   const text = buildWhatsappText(order);
 
-  if (navigator.canShare && imageFile && navigator.canShare({ files: [imageFile] })) {
-    try {
-      await navigator.share({
-        files: [imageFile],
-        title: "طلب نواقص الأفرع",
-        text
-      });
-    } catch {
-      openWhatsapp(text);
-    }
-  } else {
-    downloadImageFromCanvas(order.orderNumber);
+  downloadImageFromCanvas(order.orderNumber);
+  setTimeout(() => {
     openWhatsapp(text);
-  }
+  }, 250);
 
   state.cart = [];
   saveSession();
