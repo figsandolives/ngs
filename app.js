@@ -10,22 +10,22 @@ const firebaseConfig = {
 };
 
 const EMPLOYEES = [
-  { name: "سلطان", code: "3731" },
-  { name: "علي", code: "2027" },
-  { name: "ناهده", code: "1234" },
-  { name: "sanad", code: "2244" },
-  { name: "nagla", code: "9999" },
-  { name: "yousef", code: "2266" },
-  { name: "أحمد حلمي", code: "2581" },
-  { name: "رانيا فنون", code: "3333" },
-  { name: "فاطمة", code: "4787" },
-  { name: "صفوت", code: "2110" },
-  { name: "ّIsmail", code: "4744" },
-  { name: "رمزي", code: "1111" },
-  { name: "محمود", code: "9774" },
-  { name: "طارق", code: "8050" },
-  { name: "أحمد شوشه", code: "5466" },
-  { name: "نجلاء", code: "9516" }
+  { name: "سلطان", nameEn: "Sultan", code: "3731" },
+  { name: "علي", nameEn: "Ali", code: "2027" },
+  { name: "ناهده", nameEn: "Nahda", code: "1234" },
+  { name: "sanad", nameEn: "Sanad", code: "2244" },
+  { name: "nagla", nameEn: "Nagla", code: "9999" },
+  { name: "yousef", nameEn: "Yousef", code: "2266" },
+  { name: "أحمد حلمي", nameEn: "Ahmed Helmy", code: "2581" },
+  { name: "رانيا فنون", nameEn: "Rania Funoon", code: "3333" },
+  { name: "فاطمة", nameEn: "Fatma", code: "4787" },
+  { name: "صفوت", nameEn: "Safwat", code: "2110" },
+  { name: "ّIsmail", nameEn: "Ismail", code: "4744" },
+  { name: "رمزي", nameEn: "Ramzy", code: "1111" },
+  { name: "محمود", nameEn: "Mahmoud", code: "9774" },
+  { name: "طارق", nameEn: "Tarek", code: "8050" },
+  { name: "أحمد شوشه", nameEn: "Ahmed Shousha", code: "5466" },
+  { name: "نجلاء", nameEn: "Naglaa", code: "9516" }
 ];
 
 const UNITS = [
@@ -526,8 +526,10 @@ function buildOrder() {
     orderNumber: `SR-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(Date.now()).slice(-5)}`,
     createdAt: new Date().toISOString(),
     employeeName: state.employee?.name || "-",
+    employeeNameEn: state.employee?.nameEn || state.employee?.name || "-",
     employeeCode: state.employee?.code || "-",
     branch: state.branch || "-",
+    branchEn: getBranchEnglish(state.branch || "-"),
     items: state.cart.map((item) => ({ ...item }))
   };
 }
@@ -704,6 +706,33 @@ function getBranchEnglish(branch) {
   return `${branch || "the selected branch"}`;
 }
 
+function getEmployeeEnglish(code, name) {
+  const employee = EMPLOYEES.find((item) => item.code === String(code || "") || item.name === name);
+  return employee?.nameEn || name || "-";
+}
+
+function renderDualValue(arValue, enValue) {
+  return `
+    <span class="public-dual-value">
+      <strong>${escapeHtml(arValue || "-")}</strong>
+      <small dir="ltr">${escapeHtml(enValue || "-")}</small>
+    </span>
+  `;
+}
+
+function formatDateTimeLatin(date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kuwait",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  }).format(date);
+}
+
 function loadPublicOrder(orderId) {
   showView("order");
   els.publicOrderNumber.textContent = orderId;
@@ -734,6 +763,8 @@ function loadPublicOrder(orderId) {
 function renderPublicOrder(order) {
   const created = new Date(order.createdAt || Date.now());
   const items = order.items || [];
+  const employeeNameEn = order.employeeNameEn || getEmployeeEnglish(order.employeeCode, order.employeeName);
+  const branchEn = order.branchEn || getBranchEnglish(order.branch);
   els.publicOrderNumber.textContent = order.orderNumber || order.id || "-";
   els.publicOrderBody.innerHTML = `
     <table class="public-info-table">
@@ -742,17 +773,17 @@ function renderPublicOrder(order) {
           <th>رقم الطلب<br><small>Request No.</small></th>
           <td dir="ltr">${escapeHtml(order.orderNumber || order.id || "-")}</td>
           <th>اسم الموظف<br><small>Employee Name</small></th>
-          <td>${escapeHtml(order.employeeName || "-")}</td>
+          <td>${renderDualValue(order.employeeName || "-", employeeNameEn)}</td>
         </tr>
         <tr>
           <th>رمز الموظف<br><small>Employee Code</small></th>
           <td dir="ltr">${escapeHtml(order.employeeCode || "-")}</td>
           <th>الفرع المطلوب<br><small>Target Branch</small></th>
-          <td>${escapeHtml(order.branch || "-")}</td>
+          <td>${renderDualValue(order.branch || "-", branchEn)}</td>
         </tr>
         <tr>
           <th>التاريخ والوقت<br><small>Date & Time</small></th>
-          <td>${escapeHtml(created.toLocaleString("ar-KW"))}</td>
+          <td dir="ltr">${escapeHtml(formatDateTimeLatin(created))}</td>
           <th>عدد الأصناف<br><small>Total Items</small></th>
           <td dir="ltr">${items.length}</td>
         </tr>
