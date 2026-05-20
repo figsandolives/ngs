@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>طلب نواقص الأفرع</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <section id="loginView" class="view login-view">
+      <div class="brand-mark" id="secretTapArea" aria-label="منطقة الدخول المخفي">
+        <img src="لاخذ البيانات/logo.png" alt="Logo" />
+      </div>
+      <div class="login-copy">
+        <p class="eyebrow">Branch Shortage Request</p>
+        <h1>طلب نواقص الأفرع</h1>
+        <p>أدخل رمز الموظف لبدء طلب النواقص بطريقة سريعة ومرتبة.</p>
+      </div>
+      <form id="loginForm" class="login-card" autocomplete="off">
+        <label for="employeeCode">رمز الموظف</label>
+        <div class="code-field">
+          <input id="employeeCode" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0000" />
+          <button type="submit">دخول</button>
+        </div>
+        <p id="loginError" class="form-message"></p>
+      </form>
+      <button id="adminRevealBtn" class="admin-reveal hidden" type="button">الأدمن</button>
+    </section>
+
+    <section id="branchView" class="view branch-view hidden">
+      <button class="icon-text top-action" id="logoutFromBranch" type="button">تغيير الموظف</button>
+      <div class="welcome-panel">
+        <img src="لاخذ البيانات/logo.png" alt="Logo" />
+        <p class="eyebrow">Welcome</p>
+        <h2 id="welcomeName">مرحبا</h2>
+        <div class="welcome-emoji" aria-hidden="true">✨</div>
+      </div>
+      <div class="branch-card">
+        <h3>اختر الفرع المطلوب التحويل إليه</h3>
+        <div class="branch-options" id="branchOptions">
+          <button type="button" data-branch="ابو الحصانية">ابو الحصانية<span>Abu Al Hasaniya</span></button>
+          <button type="button" data-branch="اليرموك">اليرموك<span>Yarmouk</span></button>
+        </div>
+        <button id="confirmBranch" class="primary-action" type="button" disabled>تأكيد الفرع</button>
+      </div>
+    </section>
+
+    <section id="catalogView" class="view catalog-view hidden">
+      <header class="catalog-header">
+        <div class="logo-mini">
+          <img src="لاخذ البيانات/logo.png" alt="Logo" />
+          <div>
+            <span id="catalogEmployee">-</span>
+            <strong id="catalogBranch">-</strong>
+          </div>
+        </div>
+        <button id="backToBranch" class="soft-btn" type="button">الفرع</button>
+      </header>
+
+      <div class="search-wrap">
+        <div class="catalog-filters" id="catalogFilters" aria-label="فلترة الأصناف">
+          <button class="active" type="button" data-filter="all">الكل</button>
+          <button type="button" data-filter="product">منتجات البيع</button>
+          <button type="button" data-filter="material">مواد المخزون</button>
+        </div>
+        <input id="productSearch" type="search" placeholder="ابحث عن منتج أو مادة مخزون..." />
+      </div>
+
+      <div class="catalog-meta">
+        <span id="dataStatus">جاري تحميل المنتجات...</span>
+        <span id="productCount">0 صنف</span>
+      </div>
+
+      <main id="productGrid" class="product-grid"></main>
+      <div id="emptyState" class="empty-state hidden">
+        <strong>لا توجد نتائج</strong>
+        <span>جرّب البحث باسم آخر أو تأكد من اتصال البيانات.</span>
+      </div>
+
+      <button id="floatingCartBtn" class="floating-cart hidden" type="button">
+        <span>عرض طلب النواقص</span>
+        <strong id="floatingCartCount">0</strong>
+      </button>
+    </section>
+
+    <section id="adminView" class="view admin-view hidden">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Admin</p>
+          <h2>طلبات النواقص</h2>
+        </div>
+        <button id="adminLogout" class="soft-btn" type="button">خروج</button>
+      </header>
+      <div class="admin-tools">
+        <input id="adminSearch" type="search" placeholder="بحث بالموظف أو الفرع أو الصنف" />
+        <button id="clearLocalOrders" type="button">مسح الطلبات المحلية</button>
+      </div>
+      <div id="ordersList" class="orders-list"></div>
+    </section>
+  </div>
+
+  <div id="qtyModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-sheet qty-sheet">
+      <button class="close-btn" id="qtyClose" type="button" aria-label="إغلاق">×</button>
+      <div class="modal-title">
+        <span id="qtyItemType">منتج</span>
+        <h3 id="qtyItemName">-</h3>
+        <p id="qtyItemNameEn">-</p>
+      </div>
+      <div class="unit-strip" id="unitStrip"></div>
+      <div class="qty-display" id="qtyDisplay">0</div>
+      <div class="numpad" id="numpad"></div>
+      <p id="qtyError" class="form-message qty-error"></p>
+      <button id="qtyAdd" class="primary-action" type="button">إضافة للسلة</button>
+    </div>
+  </div>
+
+  <div id="cartModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-sheet cart-sheet">
+      <button class="close-btn" id="cartClose" type="button" aria-label="إغلاق">×</button>
+      <div class="cart-head">
+        <div>
+          <p class="eyebrow">Shortage Cart</p>
+          <h3>طلب النواقص</h3>
+        </div>
+        <span id="cartTotalBadge">0 صنف</span>
+      </div>
+      <div id="cartItems" class="cart-items"></div>
+      <button id="sendRequest" class="send-action" type="button">إرسال الطلب عبر واتساب</button>
+    </div>
+  </div>
+
+  <div id="adminLoginModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-sheet admin-login-sheet">
+      <button class="close-btn" id="adminLoginClose" type="button" aria-label="إغلاق">×</button>
+      <p class="eyebrow">Secure Area</p>
+      <h3>دخول الأدمن</h3>
+      <input id="adminCode" inputmode="numeric" maxlength="4" placeholder="رمز الأدمن" />
+      <p id="adminLoginError" class="form-message"></p>
+      <button id="adminLoginBtn" class="primary-action" type="button">دخول</button>
+    </div>
+  </div>
+
+  <canvas id="shareCanvas" width="1200" height="1600" class="hidden"></canvas>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
