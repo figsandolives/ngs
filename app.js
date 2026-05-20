@@ -40,7 +40,6 @@ const UNITS = [
 
 const WHATSAPP_PHONE = "639356113621";
 const LOCAL_ORDERS_KEY = "shortageOrders.v1";
-const LOCAL_SESSION_KEY = "shortageSession.v1";
 
 const state = {
   db: null,
@@ -73,7 +72,7 @@ function init() {
   }
   renderNumpad();
   renderUnits();
-  restoreSession();
+  resetSessionOnLoad();
   loadCatalogData();
   listenRemoteOrders();
 }
@@ -170,7 +169,6 @@ function handleLogin(event) {
   state.employee = employee;
   state.branch = "";
   state.cart = [];
-  saveSession();
   els.welcomeName.textContent = `مرحبا ${employee.name}`;
   clearBranchSelection();
   showView("branch");
@@ -184,7 +182,6 @@ function handleBranchPick(event) {
     item.classList.toggle("active", item === button);
   });
   els.confirmBranch.disabled = false;
-  saveSession();
 }
 
 function openCatalog() {
@@ -210,38 +207,17 @@ function logout() {
   state.employee = null;
   state.branch = "";
   state.cart = [];
-  localStorage.removeItem(LOCAL_SESSION_KEY);
   els.employeeCode.value = "";
   showView("login");
 }
 
-function restoreSession() {
-  try {
-    const session = JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || "null");
-    if (!session?.employee?.code) return;
-    const employee = EMPLOYEES.find((item) => item.code === session.employee.code);
-    if (!employee) return;
-    state.employee = employee;
-    state.branch = session.branch || "";
-    state.cart = Array.isArray(session.cart) ? session.cart : [];
-    els.welcomeName.textContent = `مرحبا ${employee.name}`;
-    if (state.branch) {
-      selectBranchButton(state.branch);
-      openCatalog();
-    } else {
-      showView("branch");
-    }
-  } catch {
-    localStorage.removeItem(LOCAL_SESSION_KEY);
-  }
-}
-
-function saveSession() {
-  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({
-    employee: state.employee,
-    branch: state.branch,
-    cart: state.cart
-  }));
+function resetSessionOnLoad() {
+  state.employee = null;
+  state.branch = "";
+  state.cart = [];
+  clearBranchSelection();
+  renderFloatingCart();
+  showView("login");
 }
 
 function showView(name) {
@@ -444,7 +420,6 @@ function addQtyToCart() {
       unitEn: state.selectedUnit.en
     });
   }
-  saveSession();
   renderFloatingCart();
   closeQtyModal();
 }
@@ -502,14 +477,12 @@ function handleCartEdit(event) {
     item.unitEn = unit.en;
     item.key = `${item.type}:${item.id}:${unit.ar}`;
   }
-  saveSession();
 }
 
 function handleCartDelete(event) {
   const button = event.target.closest("[data-delete]");
   if (!button) return;
   state.cart.splice(Number(button.dataset.delete), 1);
-  saveSession();
   renderCart();
   renderFloatingCart();
 }
@@ -523,7 +496,6 @@ async function sendRequest() {
   openWhatsapp(text);
 
   state.cart = [];
-  saveSession();
   renderFloatingCart();
   closeCart();
 }
