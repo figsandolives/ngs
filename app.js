@@ -65,6 +65,11 @@ function init() {
   bindLogoFallbacks();
   initFirebase();
   bindEvents();
+  const publicOrderId = new URLSearchParams(window.location.search).get("order");
+  if (publicOrderId) {
+    loadPublicOrder(publicOrderId);
+    return;
+  }
   renderNumpad();
   renderUnits();
   restoreSession();
@@ -93,7 +98,8 @@ function cacheElements() {
     "qtyDisplay", "numpad", "qtyError", "qtyAdd", "cartModal", "cartClose", "cartItems",
     "cartTotalBadge", "sendRequest", "shareCanvas", "secretTapArea", "adminRevealBtn",
     "adminLoginModal", "adminLoginClose", "adminCode", "adminLoginError", "adminLoginBtn",
-    "adminLogout", "ordersList", "adminSearch", "clearLocalOrders"
+    "adminLogout", "ordersList", "adminSearch", "clearLocalOrders", "orderView",
+    "publicOrderNumber", "publicOrderBody", "publicPdfBtn"
   ].forEach((id) => {
     els[id] = document.getElementById(id);
   });
@@ -140,6 +146,7 @@ function bindEvents() {
   els.adminLogout.addEventListener("click", () => showView(state.employee ? "branch" : "login"));
   els.adminSearch.addEventListener("input", renderAdminOrders);
   els.clearLocalOrders.addEventListener("click", clearLocalOrders);
+  els.publicPdfBtn.addEventListener("click", downloadPublicOrderPdf);
 }
 
 function normalizeCodeInput(event) {
@@ -241,6 +248,7 @@ function showView(name) {
   els.branchView.classList.toggle("hidden", name !== "branch");
   els.catalogView.classList.toggle("hidden", name !== "catalog");
   els.adminView.classList.toggle("hidden", name !== "admin");
+  els.orderView.classList.toggle("hidden", name !== "order");
   if (name === "admin") renderAdminOrders();
 }
 
@@ -494,14 +502,10 @@ function handleCartDelete(event) {
 async function sendRequest() {
   if (!state.cart.length) return;
   const order = buildOrder();
-  persistOrder(order);
-  await createOrderImage(order);
-  const text = buildWhatsappText(order);
-
-  downloadImageFromCanvas(order.orderNumber);
-  setTimeout(() => {
-    openWhatsapp(text);
-  }, 250);
+  await persistOrder(order);
+  const orderLink = buildOrderLink(order);
+  const text = buildWhatsappText(order, orderLink);
+  openWhatsapp(text);
 
   state.cart = [];
   saveSession();
@@ -526,8 +530,9 @@ function persistOrder(order) {
   localOrders.unshift(order);
   localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(localOrders.slice(0, 500)));
   if (state.db) {
-    state.db.ref(`shortageRequests/${order.id}`).set(order).catch(() => {});
+    return state.db.ref(`shortageRequests/${order.id}`).set(order).catch(() => {});
   }
+  return Promise.resolve();
 }
 
 async function createOrderImage(order) {
@@ -662,19 +667,98 @@ function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
   }
 }
 
-function buildWhatsappText(order) {
+function buildWhatsappText(order, orderLink) {
+  const branchEn = getBranchEnglish(order.branch);
   const lines = [
-    "طلب نواقص الأفرع / Branch Shortage Request",
-    `رقم الطلب / Request No: ${order.orderNumber}`,
-    `الموظف / Employee: ${order.employeeName}`,
-    `الفرع / Branch: ${order.branch}`,
+    `New shortage order from ${branchEn}.`,
+    "Please click the link below to view the full request details and item list:",
+    orderLink,
     "",
-    "الأصناف / Items:"
+    `Request No: ${order.orderNumber}`,
+    `Employee: ${order.employeeName}`,
+    `Target branch: ${branchEn}`,
+    "",
+    "Thank you."
   ];
-  order.items.forEach((item, index) => {
-    lines.push(`${index + 1}. ${item.nameAr || "-"} / ${item.nameEn || "-"} - ${formatQty(item.qty)} ${item.unitAr} / ${item.unitEn}`);
-  });
   return lines.join("\n");
+}
+
+function buildOrderLink(order) {
+  const url = new URL(window.location.href);
+  url.hash = "";
+  url.search = "";
+  url.searchParams.set("order", order.id);
+  return url.toString();
+}
+
+function getBranchEnglish(branch) {
+  if (branch === "اليرموك") return "Yarmouk branch";
+  if (branch === "ابو الحصانية") return "Abu Al Hasaniya branch";
+  return `${branch || "the selected branch"}`;
+}
+
+function loadPublicOrder(orderId) {
+  showView("order");
+  els.publicOrderNumber.textContent = orderId;
+  const localOrder = readLocalOrders().find((order) => order.id === orderId);
+  if (localOrder) {
+    renderPublicOrder(localOrder);
+  }
+
+  if (!state.db) {
+    if (!localOrder) renderPublicOrderError();
+    return;
+  }
+
+  state.db.ref(`shortageRequests/${orderId}`).once("value")
+    .then((snap) => {
+      const order = snap.val();
+      if (order) {
+        renderPublicOrder(order);
+      } else if (!localOrder) {
+        renderPublicOrderError();
+      }
+    })
+    .catch(() => {
+      if (!localOrder) renderPublicOrderError();
+    });
+}
+
+function renderPublicOrder(order) {
+  const created = new Date(order.createdAt || Date.now());
+  els.publicOrderNumber.textContent = order.orderNumber || order.id || "-";
+  els.publicOrderBody.innerHTML = `
+    <div class="public-meta">
+      <div><span>Employee / اسم الموظف</span><strong>${escapeHtml(order.employeeName || "-")}</strong></div>
+      <div><span>Target Branch / الفرع</span><strong>${escapeHtml(order.branch || "-")}</strong></div>
+      <div><span>Date & Time / التاريخ</span><strong>${escapeHtml(created.toLocaleString("ar-KW"))}</strong></div>
+      <div><span>Items / عدد الأصناف</span><strong>${(order.items || []).length}</strong></div>
+    </div>
+    <ul class="public-items">
+      ${(order.items || []).map((item) => `
+        <li>
+          <div>
+            <h3>${escapeHtml(item.nameAr || item.nameEn || "-")}</h3>
+            <p>${escapeHtml(item.nameEn || item.code || "-")}</p>
+          </div>
+          <strong>${formatQty(item.qty)} ${escapeHtml(item.unitAr || "")}</strong>
+        </li>
+      `).join("")}
+    </ul>
+  `;
+}
+
+function renderPublicOrderError() {
+  els.publicOrderBody.innerHTML = `
+    <div class="empty-state">
+      <strong>تعذر العثور على الطلب</strong>
+      <span>Order not found or the link is no longer available.</span>
+    </div>
+  `;
+}
+
+function downloadPublicOrderPdf() {
+  window.print();
 }
 
 function openWhatsapp(text) {

@@ -777,6 +777,161 @@ input:focus {
   padding: 9px 10px;
 }
 
+.public-order-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 14px;
+}
+
+.public-order-card {
+  width: min(100%, 760px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px);
+}
+
+.public-order-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  background: #1d1a16;
+  color: white;
+  text-align: start;
+}
+
+.public-order-head img {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: contain;
+  background: white;
+  padding: 6px;
+}
+
+.public-order-head h2 {
+  margin: 3px 0;
+  font-size: clamp(1.55rem, 6vw, 2.4rem);
+  line-height: 1.1;
+}
+
+.public-order-head span {
+  color: #ead19a;
+  font-family: "Inter", sans-serif;
+  font-weight: 800;
+}
+
+.public-order-body {
+  padding: 16px;
+}
+
+.public-order-actions {
+  padding: 0 16px 16px;
+}
+
+.public-meta {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 14px;
+}
+
+.public-meta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 14px;
+  background: #fff7e9;
+  padding: 12px;
+}
+
+.public-meta span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.public-meta strong {
+  text-align: end;
+}
+
+.public-items {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-items li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 12px;
+}
+
+.public-items h3 {
+  margin: 0 0 2px;
+  font-size: 1rem;
+}
+
+.public-items p {
+  margin: 0;
+  color: var(--muted);
+  direction: ltr;
+  font-size: 0.82rem;
+}
+
+.public-items strong {
+  color: var(--green);
+  white-space: nowrap;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  body::before,
+  .public-order-actions {
+    display: none !important;
+  }
+
+  .view {
+    min-height: auto;
+    padding: 0;
+  }
+
+  .public-order-view {
+    display: block;
+    padding: 0;
+  }
+
+  .public-order-card {
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+  }
+
+  .public-order-head {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .public-items li,
+  .public-meta div {
+    break-inside: avoid;
+  }
+}
+
 @media (min-width: 760px) {
   .catalog-view,
   .admin-view {

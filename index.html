@@ -101,6 +101,28 @@
       </div>
       <div id="ordersList" class="orders-list"></div>
     </section>
+
+    <section id="orderView" class="view public-order-view hidden">
+      <div class="public-order-card">
+        <header class="public-order-head">
+          <img src="logo.png" data-fallback-src="لاخذ البيانات/logo.png" alt="Logo" />
+          <div>
+            <p class="eyebrow">Branch Shortage Request</p>
+            <h2>طلب نواقص الأفرع</h2>
+            <span id="publicOrderNumber">-</span>
+          </div>
+        </header>
+        <div id="publicOrderBody" class="public-order-body">
+          <div class="empty-state">
+            <strong>جاري تحميل الطلب...</strong>
+            <span>Loading order details...</span>
+          </div>
+        </div>
+        <div class="public-order-actions">
+          <button id="publicPdfBtn" class="send-action" type="button">تحميل PDF</button>
+        </div>
+      </div>
+    </section>
   </div>
 
   <div id="qtyModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
