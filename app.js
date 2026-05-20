@@ -736,43 +736,29 @@ function renderPublicOrder(order) {
   const items = order.items || [];
   els.publicOrderNumber.textContent = order.orderNumber || order.id || "-";
   els.publicOrderBody.innerHTML = `
-    <div class="public-section-title">
-      <strong>بيانات الطلب</strong>
-      <span>Order Information</span>
-    </div>
-    <div class="public-meta-grid">
-      <div>
-        <span>رقم الطلب</span>
-        <small>Request No.</small>
-        <strong>${escapeHtml(order.orderNumber || order.id || "-")}</strong>
-      </div>
-      <div>
-        <span>اسم الموظف</span>
-        <small>Employee Name</small>
-        <strong>${escapeHtml(order.employeeName || "-")}</strong>
-      </div>
-      <div>
-        <span>رمز الموظف</span>
-        <small>Employee Code</small>
-        <strong>${escapeHtml(order.employeeCode || "-")}</strong>
-      </div>
-      <div>
-        <span>الفرع المطلوب التحويل إليه</span>
-        <small>Target Branch</small>
-        <strong>${escapeHtml(order.branch || "-")}</strong>
-      </div>
-      <div>
-        <span>التاريخ والوقت</span>
-        <small>Date & Time</small>
-        <strong>${escapeHtml(created.toLocaleString("ar-KW"))}</strong>
-      </div>
-      <div>
-        <span>عدد الأصناف</span>
-        <small>Total Items</small>
-        <strong>${items.length}</strong>
-      </div>
-    </div>
-    <div class="public-section-title">
+    <table class="public-info-table">
+      <tbody>
+        <tr>
+          <th>رقم الطلب<br><small>Request No.</small></th>
+          <td dir="ltr">${escapeHtml(order.orderNumber || order.id || "-")}</td>
+          <th>اسم الموظف<br><small>Employee Name</small></th>
+          <td>${escapeHtml(order.employeeName || "-")}</td>
+        </tr>
+        <tr>
+          <th>رمز الموظف<br><small>Employee Code</small></th>
+          <td dir="ltr">${escapeHtml(order.employeeCode || "-")}</td>
+          <th>الفرع المطلوب<br><small>Target Branch</small></th>
+          <td>${escapeHtml(order.branch || "-")}</td>
+        </tr>
+        <tr>
+          <th>التاريخ والوقت<br><small>Date & Time</small></th>
+          <td>${escapeHtml(created.toLocaleString("ar-KW"))}</td>
+          <th>عدد الأصناف<br><small>Total Items</small></th>
+          <td dir="ltr">${items.length}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="public-section-title compact">
       <strong>قائمة المنتجات</strong>
       <span>Items List</span>
     </div>
