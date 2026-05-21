@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260520-6" />
+  <link rel="stylesheet" href="styles.css?v=20260521-3" />
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -122,6 +122,7 @@
           </div>
         </div>
         <div class="public-order-actions">
+          <button id="publicDeliveryBtn" class="delivery-action" type="button">تسليم / Delivery</button>
           <button id="publicPdfBtn" class="send-action" type="button">تحميل PDF / Download PDF</button>
         </div>
       </div>
@@ -170,10 +171,34 @@
     </div>
   </div>
 
+  <div id="deliveryAuthModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-sheet admin-login-sheet">
+      <button class="close-btn" id="deliveryAuthClose" type="button" aria-label="إغلاق">×</button>
+      <p class="eyebrow">Authorization</p>
+      <h3>هل أنت مخول بالتعديل؟</h3>
+      <p class="modal-helper">Are you authorized to edit this request?</p>
+      <input id="deliveryCode" inputmode="numeric" maxlength="4" placeholder="رمز التفويض / Authorization code" />
+      <p id="deliveryAuthError" class="form-message"></p>
+      <button id="deliveryAuthConfirm" class="primary-action" type="button">نعم / Yes</button>
+    </div>
+  </div>
+
+  <div id="duplicateModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-sheet admin-login-sheet">
+      <p class="eyebrow">Duplicate Item</p>
+      <h3>تنبيه صنف مكرر</h3>
+      <p id="duplicateMessage" class="modal-helper"></p>
+      <div class="modal-actions-two">
+        <button id="duplicateCancel" class="soft-btn" type="button">لا / No</button>
+        <button id="duplicateContinue" class="primary-action" type="button">نعم / Yes</button>
+      </div>
+    </div>
+  </div>
+
   <canvas id="shareCanvas" width="1200" height="1600" class="hidden"></canvas>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="app.js?v=20260520-6"></script>
+  <script src="app.js?v=20260521-3"></script>
 </body>
 </html>

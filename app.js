@@ -40,6 +40,7 @@ const UNITS = [
 
 const WHATSAPP_PHONE = "639356113621";
 const LOCAL_ORDERS_KEY = "shortageOrders.v1";
+const DELIVERY_CODE = "1234";
 
 const state = {
   db: null,
@@ -53,7 +54,13 @@ const state = {
   selectedUnit: null,
   qtyValue: "",
   adminVisible: false,
-  remoteOrders: []
+  remoteOrders: [],
+  publicOrder: null,
+  publicOrderId: "",
+  deliveryEditMode: false,
+  deliveryEditRequested: false,
+  deliveryAuthPrompted: false,
+  duplicatePendingAdd: null
 };
 
 const els = {};
@@ -69,6 +76,7 @@ function init() {
   bindEvents();
   const publicOrderId = new URLSearchParams(window.location.search).get("order");
   if (publicOrderId) {
+    state.deliveryEditRequested = new URLSearchParams(window.location.search).get("edit") === "1";
     loadPublicOrder(publicOrderId);
     return;
   }
@@ -114,7 +122,10 @@ function cacheElements() {
     "cartTotalBadge", "sendRequest", "shareCanvas", "secretTapArea", "adminRevealBtn",
     "adminLoginModal", "adminLoginClose", "adminCode", "adminLoginError", "adminLoginBtn",
     "adminLogout", "ordersList", "adminSearch", "clearLocalOrders", "orderView",
-    "publicOrderNumber", "publicOrderBody", "publicPdfBtn"
+    "publicOrderNumber", "publicOrderBody", "publicPdfBtn", "publicDeliveryBtn",
+    "deliveryAuthModal", "deliveryAuthClose", "deliveryCode", "deliveryAuthError",
+    "deliveryAuthConfirm", "duplicateModal", "duplicateMessage", "duplicateCancel",
+    "duplicateContinue"
   ].forEach((id) => {
     els[id] = document.getElementById(id);
   });
@@ -151,7 +162,7 @@ function bindEvents() {
   els.cartItems.addEventListener("change", handleCartEdit);
   els.cartItems.addEventListener("click", handleCartDelete);
   els.sendRequest.addEventListener("click", sendRequest);
-  els.secretTapArea.addEventListener("click", handleSecretTap);
+  els.loginView.addEventListener("click", handleSecretTap);
   els.adminRevealBtn.addEventListener("click", openAdminLogin);
   els.adminLoginClose.addEventListener("click", closeAdminLogin);
   els.adminLoginBtn.addEventListener("click", verifyAdmin);
@@ -161,7 +172,18 @@ function bindEvents() {
   els.adminLogout.addEventListener("click", () => showView(state.employee ? "branch" : "login"));
   els.adminSearch.addEventListener("input", renderAdminOrders);
   els.clearLocalOrders.addEventListener("click", clearLocalOrders);
+  els.ordersList.addEventListener("click", handleAdminOrderAction);
   els.publicPdfBtn.addEventListener("click", downloadPublicOrderPdf);
+  els.publicDeliveryBtn.addEventListener("click", openDeliveryAuth);
+  els.deliveryAuthClose.addEventListener("click", closeDeliveryAuth);
+  els.deliveryAuthConfirm.addEventListener("click", authorizeDeliveryEdit);
+  els.deliveryCode.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") authorizeDeliveryEdit();
+  });
+  els.publicOrderBody.addEventListener("change", handleDeliveredItemToggle);
+  els.publicOrderBody.addEventListener("click", handlePublicOrderClick);
+  els.duplicateCancel.addEventListener("click", closeDuplicateModal);
+  els.duplicateContinue.addEventListener("click", continueDuplicateAdd);
 }
 
 function normalizeCodeInput(event) {
@@ -296,7 +318,9 @@ function listenRemoteOrders() {
   state.db.ref("shortageRequests").limitToLast(300).on("value", (snap) => {
     state.remoteOrders = Object.values(snap.val() || {})
       .filter((order) => order && order.id)
+      .map(normalizeOrderForDelivery)
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    upgradeLegacyOrdersInList(snap.val() || {});
     if (!els.adminView.classList.contains("hidden")) renderAdminOrders();
   }, () => {});
 }
@@ -423,25 +447,67 @@ function addQtyToCart() {
     els.qtyError.textContent = "لازم تحدد الكمية أولاً";
     return;
   }
-  const key = `${state.selectedItem.type}:${state.selectedItem.id}:${state.selectedUnit.ar}`;
-  const existing = state.cart.find((item) => item.key === key);
+  const duplicate = findUndeliveredDuplicate(state.selectedItem);
+  if (duplicate) {
+    state.duplicatePendingAdd = { item: state.selectedItem, unit: state.selectedUnit, qty };
+    showDuplicateModal(duplicate);
+    return;
+  }
+  addItemToCart(state.selectedItem, state.selectedUnit, qty);
+}
+
+function addItemToCart(item, unit, qty) {
+  const key = `${item.type}:${item.id}:${unit.ar}`;
+  const existing = state.cart.find((cartItem) => cartItem.key === key);
   if (existing) {
     existing.qty = Number(existing.qty || 0) + qty;
   } else {
     state.cart.push({
       key,
-      id: state.selectedItem.id,
-      type: state.selectedItem.type,
-      nameAr: state.selectedItem.nameAr,
-      nameEn: state.selectedItem.nameEn,
-      code: state.selectedItem.code,
+      id: item.id,
+      type: item.type,
+      nameAr: item.nameAr,
+      nameEn: item.nameEn,
+      code: item.code,
       qty,
-      unitAr: state.selectedUnit.ar,
-      unitEn: state.selectedUnit.en
+      unitAr: unit.ar,
+      unitEn: unit.en
     });
   }
   renderFloatingCart();
   closeQtyModal();
+}
+
+function findUndeliveredDuplicate(item) {
+  if (!item || !state.branch) return null;
+  return state.remoteOrders.find((order) => {
+    if (order.branch !== state.branch) return false;
+    if ((order.deliveryStatus || "working") === "delivered") return false;
+    return (order.items || []).some((orderItem) => {
+      const sameItem = orderItem.id === item.id && orderItem.type === item.type;
+      const delivered = order.deliveredItems?.[getDeliveredItemKey(orderItem)];
+      return sameItem && !delivered;
+    });
+  });
+}
+
+function showDuplicateModal(order) {
+  const matchingItem = (order.items || []).find((item) => item.id === state.selectedItem.id && item.type === state.selectedItem.type);
+  els.duplicateMessage.textContent = `الموظف ${order.employeeName || "-"} قام بطلب ${formatQty(matchingItem?.qty)} ${matchingItem?.unitAr || ""} من هذا الصنف.. هل تريد الاستمرار في إضافة المنتج مرة أخرى؟`;
+  els.duplicateModal.classList.remove("hidden");
+}
+
+function closeDuplicateModal() {
+  state.duplicatePendingAdd = null;
+  els.duplicateModal.classList.add("hidden");
+}
+
+function continueDuplicateAdd() {
+  const pending = state.duplicatePendingAdd;
+  if (!pending) return;
+  addItemToCart(pending.item, pending.unit, pending.qty);
+  state.duplicatePendingAdd = null;
+  els.duplicateModal.classList.add("hidden");
 }
 
 function renderFloatingCart() {
@@ -530,6 +596,11 @@ function buildOrder() {
     employeeCode: state.employee?.code || "-",
     branch: state.branch || "-",
     branchEn: getBranchEnglish(state.branch || "-"),
+    deliveryStatus: "working",
+    deliveredItems: {},
+    deliveredAt: "",
+    alertAcknowledged: false,
+    alertAcknowledgedAt: "",
     items: state.cart.map((item) => ({ ...item }))
   };
 }
@@ -735,8 +806,9 @@ function formatDateTimeLatin(date) {
 
 function loadPublicOrder(orderId) {
   showView("order");
+  state.publicOrderId = orderId;
   els.publicOrderNumber.textContent = orderId;
-  const localOrder = readLocalOrders().find((order) => order.id === orderId);
+  const localOrder = normalizeOrderForDelivery(readLocalOrders().find((order) => order.id === orderId));
   if (localOrder) {
     renderPublicOrder(localOrder);
   }
@@ -746,27 +818,55 @@ function loadPublicOrder(orderId) {
     return;
   }
 
-  state.db.ref(`shortageRequests/${orderId}`).once("value")
-    .then((snap) => {
+  state.db.ref(`shortageRequests/${orderId}`).on("value",
+    (snap) => {
       const order = snap.val();
       if (order) {
-        renderPublicOrder(order);
+        const normalizedOrder = normalizeOrderForDelivery(order);
+        state.publicOrder = normalizedOrder;
+        upgradeLegacyOrder(order);
+        acknowledgeOrderAlert(normalizedOrder);
+        renderPublicOrder(normalizedOrder);
+        if (state.deliveryEditRequested && !state.deliveryAuthPrompted) {
+          state.deliveryAuthPrompted = true;
+          openDeliveryAuth();
+        }
       } else if (!localOrder) {
         renderPublicOrderError();
       }
-    })
-    .catch(() => {
+    },
+    () => {
       if (!localOrder) renderPublicOrderError();
     });
 }
 
 function renderPublicOrder(order) {
+  if (!order) return;
+  order = normalizeOrderForDelivery(order);
   const created = new Date(order.createdAt || Date.now());
   const items = order.items || [];
   const employeeNameEn = order.employeeNameEn || getEmployeeEnglish(order.employeeCode, order.employeeName);
   const branchEn = order.branchEn || getBranchEnglish(order.branch);
   els.publicOrderNumber.textContent = order.orderNumber || order.id || "-";
+  const deliveredItems = order.deliveredItems || {};
+  const isDelivered = (order.deliveryStatus || "working") === "delivered";
+  const isEditing = state.deliveryEditMode;
+  if (isDelivered && !isEditing) {
+    els.publicOrderBody.innerHTML = `
+      <div class="delivered-only">
+        <strong>تم تسليم هذا الطلب</strong>
+        <span>This request has been delivered</span>
+        <small dir="ltr">${order.deliveredAt ? escapeHtml(formatDateTimeLatin(new Date(order.deliveredAt))) : ""}</small>
+      </div>
+    `;
+    els.publicDeliveryBtn.textContent = "تعديل / Edit";
+    return;
+  }
   els.publicOrderBody.innerHTML = `
+    <div class="delivery-status ${isDelivered ? "done" : "working"}">
+      <strong>${isDelivered ? "تم تسليم هذا الطلب" : "جاري العمل على الطلب"}</strong>
+      <span>${isDelivered ? "This request has been delivered" : "Request in progress"}</span>
+    </div>
     <table class="public-info-table">
       <tbody>
         <tr>
@@ -793,6 +893,12 @@ function renderPublicOrder(order) {
       <strong>قائمة المنتجات</strong>
       <span>Items List</span>
     </div>
+    ${isEditing ? `
+      <label class="select-all-row">
+        <input id="deliverAllItems" type="checkbox" ${items.length && items.every((item) => deliveredItems[getDeliveredItemKey(item)]) ? "checked" : ""} />
+        <span>تحديد الكل / Select all</span>
+      </label>
+    ` : ""}
     <div class="public-table-wrap">
       <table class="public-items-table">
         <thead>
@@ -802,26 +908,30 @@ function renderPublicOrder(order) {
             <th>اسم الصنف بالإنجليزي<br><small>English Item Name</small></th>
             <th>الكمية<br><small>Quantity</small></th>
             <th>الوحدة<br><small>Unit</small></th>
+            ${isEditing ? `<th>تم<br><small>Done</small></th>` : ""}
           </tr>
         </thead>
         <tbody>
           ${items.map((item, index) => `
-            <tr>
+            <tr class="${deliveredItems[getDeliveredItemKey(item)] ? "delivered-row" : ""}">
               <td>${index + 1}</td>
               <td>${escapeHtml(item.nameAr || "-")}</td>
               <td dir="ltr">${escapeHtml(item.nameEn || item.code || "-")}</td>
               <td dir="ltr">${formatQty(item.qty)}</td>
               <td>${escapeHtml(item.unitAr || "-")}<br><small>${escapeHtml(item.unitEn || "-")}</small></td>
+              ${isEditing ? `<td><input class="deliver-item-check" type="checkbox" data-item-key="${escapeHtml(getDeliveredItemKey(item))}" ${deliveredItems[getDeliveredItemKey(item)] ? "checked" : ""} /></td>` : ""}
             </tr>
           `).join("")}
         </tbody>
       </table>
     </div>
+    ${isEditing ? `<button id="finishDeliveryBtn" class="delivery-finish-btn" type="button">تم التسليم / Delivery completed</button>` : ""}
     <footer class="public-order-footer">
       <span>تم إنشاء هذا الطلب من نظام طلب نواقص الأفرع</span>
       <strong>Generated by Branch Shortage Request System</strong>
     </footer>
   `;
+  els.publicDeliveryBtn.textContent = isDelivered ? "تعديل / Edit" : "تسليم / Delivery";
 }
 
 function renderPublicOrderError() {
@@ -835,6 +945,114 @@ function renderPublicOrderError() {
 
 function downloadPublicOrderPdf() {
   window.print();
+}
+
+function getDeliveredItemKey(item) {
+  return `${item.type || "product"}:${item.id || item.code || item.nameAr || item.nameEn}:${item.unitAr || ""}`;
+}
+
+function openDeliveryAuth() {
+  if (!state.publicOrderId) return;
+  els.deliveryCode.value = "";
+  els.deliveryAuthError.textContent = "";
+  els.deliveryAuthModal.classList.remove("hidden");
+  setTimeout(() => els.deliveryCode.focus(), 80);
+}
+
+function closeDeliveryAuth() {
+  els.deliveryAuthModal.classList.add("hidden");
+}
+
+function authorizeDeliveryEdit() {
+  if (normalizeDigits(els.deliveryCode.value) !== DELIVERY_CODE) {
+    els.deliveryAuthError.textContent = "رمز التفويض غير صحيح / Invalid authorization code";
+    return;
+  }
+  closeDeliveryAuth();
+  state.deliveryEditMode = true;
+  renderPublicOrder(state.publicOrder);
+}
+
+function handleDeliveredItemToggle(event) {
+  if (!state.deliveryEditMode || !state.publicOrderId) return;
+  if (event.target.id === "deliverAllItems") {
+    const deliveredItems = {};
+    (state.publicOrder?.items || []).forEach((item) => {
+      deliveredItems[getDeliveredItemKey(item)] = event.target.checked;
+    });
+    updateDeliveryPatch({ deliveredItems, deliveryStatus: "working", deliveredAt: "" });
+    return;
+  }
+  if (!event.target.classList.contains("deliver-item-check")) return;
+  const key = event.target.dataset.itemKey;
+  const deliveredItems = { ...(state.publicOrder?.deliveredItems || {}) };
+  deliveredItems[key] = event.target.checked;
+  updateDeliveryPatch({ deliveredItems, deliveryStatus: "working", deliveredAt: "" });
+}
+
+function handlePublicOrderClick(event) {
+  const button = event.target.closest("#finishDeliveryBtn");
+  if (!button || !state.publicOrderId) return;
+  if (!confirm("هل تريد تأكيد تسليم الطلب؟\nDo you want to confirm delivery?")) return;
+  state.deliveryEditMode = false;
+  updateDeliveryPatch({
+    deliveryStatus: "delivered",
+    deliveredAt: new Date().toISOString()
+  });
+}
+
+function updateDeliveryPatch(patch) {
+  if (!state.db || !state.publicOrderId) return Promise.resolve();
+  return state.db.ref(`shortageRequests/${state.publicOrderId}`).update(patch);
+}
+
+function acknowledgeOrderAlert(order) {
+  if (!state.db || !state.publicOrderId || order.alertAcknowledged === true) return;
+  state.db.ref(`shortageRequests/${state.publicOrderId}`).update({
+    alertAcknowledged: true,
+    alertAcknowledgedAt: new Date().toISOString()
+  }).catch(() => {});
+}
+
+function normalizeOrderForDelivery(order) {
+  if (!order) return null;
+  return {
+    ...order,
+    deliveryStatus: order.deliveryStatus || "working",
+    deliveredItems: order.deliveredItems || {},
+    deliveredAt: order.deliveredAt || "",
+    alertAcknowledged: order.alertAcknowledged !== undefined ? order.alertAcknowledged : true,
+    alertAcknowledgedAt: order.alertAcknowledgedAt || ""
+  };
+}
+
+function upgradeLegacyOrder(order) {
+  if (!state.db || !state.publicOrderId || !order) return;
+  const patch = {};
+  if (!order.deliveryStatus) patch.deliveryStatus = "working";
+  if (!order.deliveredItems) patch.deliveredItems = {};
+  if (order.deliveredAt === undefined) patch.deliveredAt = "";
+  if (order.alertAcknowledged === undefined) patch.alertAcknowledged = true;
+  if (order.alertAcknowledgedAt === undefined) patch.alertAcknowledgedAt = "";
+  if (Object.keys(patch).length) {
+    state.db.ref(`shortageRequests/${state.publicOrderId}`).update(patch).catch(() => {});
+  }
+}
+
+function upgradeLegacyOrdersInList(ordersMap) {
+  if (!state.db || !ordersMap) return;
+  Object.entries(ordersMap).forEach(([key, order]) => {
+    if (!order || !order.id) return;
+    const patch = {};
+    if (!order.deliveryStatus) patch.deliveryStatus = "working";
+    if (!order.deliveredItems) patch.deliveredItems = {};
+    if (order.deliveredAt === undefined) patch.deliveredAt = "";
+    if (order.alertAcknowledged === undefined) patch.alertAcknowledged = true;
+    if (order.alertAcknowledgedAt === undefined) patch.alertAcknowledgedAt = "";
+    if (Object.keys(patch).length) {
+      state.db.ref(`shortageRequests/${key}`).update(patch).catch(() => {});
+    }
+  });
 }
 
 function openWhatsapp(text) {
@@ -899,12 +1117,16 @@ function renderAdminOrders() {
 
   els.ordersList.innerHTML = orders.map((order) => {
     const created = new Date(order.createdAt);
+    const status = (order.deliveryStatus || "working") === "delivered"
+      ? "تم التسليم / Delivered"
+      : "جاري العمل / In progress";
     return `
-      <article class="order-card">
+      <article class="order-card" data-order-id="${escapeHtml(order.id || "")}">
         <div class="order-card-head">
           <div>
             <h3>${escapeHtml(order.employeeName)} - ${escapeHtml(order.branch)}</h3>
             <div class="meta">${escapeHtml(order.orderNumber)}</div>
+            <div class="meta">${status}</div>
           </div>
           <time>${created.toLocaleString("ar-KW")}</time>
         </div>
@@ -916,9 +1138,53 @@ function renderAdminOrders() {
             </li>
           `).join("")}
         </ul>
+        <div class="admin-order-actions">
+          <button type="button" data-admin-action="view" data-order-id="${escapeHtml(order.id || "")}">عرض / View</button>
+          <button type="button" data-admin-action="edit" data-order-id="${escapeHtml(order.id || "")}">تعديل / Edit</button>
+          <button type="button" data-admin-action="delete" data-order-id="${escapeHtml(order.id || "")}">حذف / Delete</button>
+        </div>
       </article>
     `;
   }).join("");
+}
+
+function handleAdminOrderAction(event) {
+  const button = event.target.closest("[data-admin-action]");
+  if (!button) return;
+  const action = button.dataset.adminAction;
+  const orderId = button.dataset.orderId;
+  if (!orderId) return;
+  const order = mergeOrders(readLocalOrders(), state.remoteOrders).find((item) => item.id === orderId);
+  if (!order) return;
+
+  if (action === "view" || action === "edit") {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("order", order.id);
+    if (action === "edit") url.searchParams.set("edit", "1");
+    window.location.href = url.toString();
+    return;
+  }
+
+  if (action === "delete") {
+    deleteAdminOrder(order);
+  }
+}
+
+function deleteAdminOrder(order) {
+  if (!confirm("هل تريد حذف طلب النواقص؟\nDo you want to delete this shortage request?")) return;
+  const localOrders = readLocalOrders().filter((item) => item.id !== order.id);
+  localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(localOrders));
+  const afterDelete = () => {
+    state.remoteOrders = state.remoteOrders.filter((item) => item.id !== order.id);
+    renderAdminOrders();
+  };
+  if (state.db) {
+    state.db.ref(`shortageRequests/${order.id}`).remove().then(afterDelete).catch(afterDelete);
+  } else {
+    afterDelete();
+  }
 }
 
 function mergeOrders(localOrders, remoteOrders) {
