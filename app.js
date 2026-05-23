@@ -9,6 +9,16 @@ const firebaseConfig = {
   measurementId: "G-W42ECQR0LW"
 };
 
+const salesProductsFirebaseConfig = {
+  apiKey: "AIzaSyAxjBBtAnpThJoliccuoq0NNIABGPv1dJg",
+  authDomain: "fawatir-b6119.firebaseapp.com",
+  databaseURL: "https://fawatir-b6119-default-rtdb.firebaseio.com",
+  projectId: "fawatir-b6119",
+  storageBucket: "fawatir-b6119.firebasestorage.app",
+  messagingSenderId: "575777677956",
+  appId: "1:575777677956:web:74794fdd3525f2693d18d1"
+};
+
 const EMPLOYEES = [
   { name: "سلطان", nameEn: "Sultan", code: "3731" },
   { name: "علي", nameEn: "Ali", code: "2027" },
@@ -44,6 +54,7 @@ const DELIVERY_CODE = "1234";
 
 const state = {
   db: null,
+  salesDb: null,
   employee: null,
   branch: "",
   products: [],
@@ -137,11 +148,23 @@ function initFirebase() {
     return;
   }
   try {
-    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+    const app = getFirebaseApp(firebaseConfig, "[DEFAULT]");
     state.db = app.database();
   } catch (error) {
     setStatus("تعذر الاتصال بقاعدة البيانات.");
   }
+  try {
+    const salesApp = getFirebaseApp(salesProductsFirebaseConfig, "salesProducts");
+    state.salesDb = salesApp.database();
+  } catch (error) {
+    console.warn("تعذر الاتصال بقاعدة منتجات البيع", error);
+  }
+}
+
+function getFirebaseApp(config, name) {
+  const existing = firebase.apps.find((app) => app.name === name);
+  if (existing) return existing;
+  return name === "[DEFAULT]" ? firebase.initializeApp(config) : firebase.initializeApp(config, name);
 }
 
 function bindEvents() {
@@ -289,28 +312,57 @@ function loadCatalogData() {
   setStatus("جاري تحميل المنتجات...", true);
   renderProducts();
 
-  if (!state.db) {
+  if (!state.db && !state.salesDb) {
     state.catalogLoading = false;
     setStatus("لا يوجد اتصال بقاعدة البيانات.");
     renderProducts();
     return;
   }
 
-  Promise.all([
-    state.db.ref("products").once("value"),
-    state.db.ref("stockMaterials").once("value")
-  ]).then(([productsSnap, materialsSnap]) => {
-    const products = mapFirebaseItems(productsSnap.val(), "product");
-    const materials = mapFirebaseItems(materialsSnap.val(), "material");
+  const productsRequest = state.salesDb
+    ? state.salesDb.ref("products").once("value")
+    : Promise.reject(new Error("لا يوجد اتصال بقاعدة منتجات البيع"));
+  const materialsRequest = state.db
+    ? state.db.ref("stockMaterials").once("value")
+    : Promise.reject(new Error("لا يوجد اتصال بقاعدة مواد المخزون"));
+
+  Promise.allSettled([productsRequest, materialsRequest]).then(([productsResult, materialsResult]) => {
+    const products = productsResult.status === "fulfilled"
+      ? mapFirebaseItems(productsResult.value.val(), "product")
+      : [];
+    const materials = materialsResult.status === "fulfilled"
+      ? mapFirebaseItems(materialsResult.value.val(), "material")
+      : [];
     state.products = [...products, ...materials].sort((a, b) => getName(a).localeCompare(getName(b), "ar"));
     state.catalogLoading = false;
-    setStatus(state.products.length ? "تم تحميل المنتجات ومواد المخزون" : "لم يتم العثور على منتجات في قاعدة البيانات");
+    setStatus(getCatalogStatus(productsResult, materialsResult, products.length, materials.length));
     renderProducts();
   }).catch(() => {
     state.catalogLoading = false;
     setStatus("تعذر تحميل المنتجات من قاعدة البيانات.");
     renderProducts();
   });
+}
+
+function getCatalogStatus(productsResult, materialsResult, productsCount, materialsCount) {
+  const productsLoaded = productsResult.status === "fulfilled";
+  const materialsLoaded = materialsResult.status === "fulfilled";
+  if (productsLoaded && materialsLoaded) {
+    return productsCount + materialsCount
+      ? "تم تحميل منتجات البيع ومواد المخزون"
+      : "لم يتم العثور على منتجات في قواعد البيانات";
+  }
+  if (productsLoaded) {
+    return productsCount
+      ? "تم تحميل منتجات البيع، وتعذر تحميل مواد المخزون"
+      : "تعذر تحميل مواد المخزون، ولم يتم العثور على منتجات بيع";
+  }
+  if (materialsLoaded) {
+    return materialsCount
+      ? "تم تحميل مواد المخزون، وتعذر تحميل منتجات البيع"
+      : "تعذر تحميل منتجات البيع، ولم يتم العثور على مواد مخزون";
+  }
+  return "تعذر تحميل منتجات البيع ومواد المخزون.";
 }
 
 function listenRemoteOrders() {
